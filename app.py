@@ -133,7 +133,6 @@ elif menu == "📋 Llista i PB":
 elif menu == "🏆 COMPETICIÓ":
     st.header("🏁 Sistema de Competició Oficial")
 
-    # Mantenim config_proves (igual que abans)
     config_proves = {
         "100 metres llisos": {"n1": 10.44, "n100": 9.58, "tipus": "temps", "fase": "curses"},
         "200 metres llisos": {"n1": 21.15, "n100": 19.19, "tipus": "temps", "fase": "curses"},
@@ -154,25 +153,89 @@ elif menu == "🏆 COMPETICIÓ":
 
     prova_simu = st.selectbox("Tria la prova:", list(config_proves.keys()))
     conf = config_proves[prova_simu]
-    
-    # Filtrem atletes que pertanyen a aquesta prova
     atletes_aptes = df_actual[df_actual['prova'] == prova_simu]
-    llista_noms = atletes_aptes['nom'].tolist()
 
     if len(atletes_aptes) < 48:
         st.error(f"❌ Falten atletes! Tens {len(atletes_aptes)}/48 inscrits a {prova_simu}.")
     else:
-        # SELECTOR DE PARTICIPANTS
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            triats = st.multiselect(f"Selecciona els 48 participants per a {prova_simu}:", llista_noms)
-        with col2:
-            if st.button("🎲 Omplir atzar"):
-                triats = random.sample(llista_noms, 48)
-                # Nota: streamlit no actualitza el multiselect visualment al moment, 
-                # però la variable 'triats' sí que tindrà les dades per al botó d'inici.
-
-        st.info(f"Participants seleccionats: {len(triats)}/48")
-
+        triats = st.multiselect("Selecciona els 48 participants:", atletes_aptes['nom'].tolist())
+        
         if st.button("🚀 INICIAR COMPETICIÓ"):
             if len(triats) != 48:
+                st.error("Has de seleccionar exactament 48 atletes.")
+            else:
+                participats = atletes_aptes[atletes_aptes['nom'].isin(triats)].to_dict('records')
+                random.shuffle(participats) # Barregem per fer els grups aleatoris
+
+                # --- CAS CURSES (Eliminatòries -> Semis -> Final) ---
+                if conf['fase'] == "curses":
+                    # ELIMINATÒRIES (6 de 8)
+                    st.subheader("🏁 ELIMINATÒRIES")
+                    class_semi = []
+                    tercers = []
+                    grups = [participats[i:i+8] for i in range(0, 48, 8)]
+                    
+                    for i, grup in enumerate(grups):
+                        res = []
+                        for a in grup:
+                            m = calcular_marca(float(a['mitja']), conf)
+                            res.append({"nom": a['nom'], "pais": a['pais'], "mitja": a['mitja'], "marca": m})
+                        df = pd.DataFrame(res).sort_values("marca")
+                        st.write(f"Sèrie {i+1}"); st.table(df)
+                        class_semi.extend(df.iloc[0:2].to_dict('records'))
+                        tercers.append(df.iloc[2].to_dict('records'))
+                    
+                    # Millors 4 tercers (amb sorteig si hi ha empat)
+                    df_3 = pd.DataFrame(tercers).sample(frac=1).sort_values("marca").head(4)
+                    class_semi.extend(df_3.to_dict('records'))
+                    
+                    # SEMIFINALS (2 de 8)
+                    st.subheader("🏃 SEMIFINALS")
+                    class_final = []
+                    grups_s = [class_semi[i:i+8] for i in range(0, 16, 8)]
+                    for i, grup in enumerate(grups_s):
+                        res = []
+                        for a in grup:
+                            m = calcular_marca(float(a['mitja']), conf)
+                            res.append({"nom": a['nom'], "pais": a['pais'], "mitja": a['mitja'], "marca": m})
+                        df = pd.DataFrame(res).sort_values("marca")
+                        st.write(f"Semi {i+1}"); st.table(df)
+                        class_final.extend(df.iloc[0:4].to_dict('records'))
+                    
+                    # FINAL
+                    st.subheader("🥇 FINAL")
+                    f_res = []
+                    for a in class_final:
+                        m = calcular_marca(float(a['mitja']), conf)
+                        f_res.append({"Atleta": a['nom'], "País": a['pais'], "Marca": m})
+                        enviar_a_google_form(a['nom'], a['pais'], a['mitja'], m, prova_simu)
+                    st.table(pd.DataFrame(f_res).sort_values("Marca"))
+
+                # --- CAS CONCURSOS (2 grups de 24 -> Final de 16) ---
+                else:
+                    st.subheader("📐 ELIMINATÒRIES (2 grups de 24)")
+                    class_final = []
+                    grups_c = [participats[i:i+24] for i in range(0, 48, 24)]
+                    
+                    for i, grup in enumerate(grups_c):
+                        res = []
+                        for a in grup:
+                            # 3 intents amb lògica de desempat
+                            intents = sorted([calcular_marca(float(a['mitja']), conf) or -1 for _ in range(3)], reverse=True)
+                            res.append({"nom": a['nom'], "pais": a['pais'], "mitja": a['mitja'], "marca": intents[0] if intents[0] != -1 else "Nul", "m1": intents[0], "m2": intents[1], "m3": intents[2]})
+                        df = pd.DataFrame(res).sort_values(["m1", "m2", "m3"], ascending=False)
+                        st.write(f"Grup {i+1}"); st.table(df[['nom', 'pais', 'marca']].head(8))
+                        class_final.extend(df.iloc[0:8].to_dict('records'))
+                    
+                    # FINAL (16 atletes)
+                    st.subheader("🥇 FINAL")
+                    f_res = []
+                    for a in class_final:
+                        intents = sorted([calcular_marca(float(a['mitja']), conf) or -1 for _ in range(3)], reverse=True)
+                        m_f = intents[0] if intents[0] != -1 else 0
+                        f_res.append({"Atleta": a['nom'], "País": a['pais'], "Marca": m_f})
+                        enviar_a_google_form(a['nom'], a['pais'], a['mitja'], m_f, prova_simu)
+                    st.table(pd.DataFrame(f_res).sort_values("Marca", ascending=False))
+                
+                st.balloons()
+                st.cache_data.clear()
