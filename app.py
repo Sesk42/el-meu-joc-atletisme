@@ -13,41 +13,45 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_atletes():
     try:
-        # ttl=0 per forçar la lectura de dades noves
+        # LLegim l'Excel (ttl=0 per dades fresques)
         df = conn.read(ttl=0)
         
+        # Si l'Excel està totalment buit (només capçaleres o ni això)
         if df is None or df.empty:
             return pd.DataFrame(columns=['nom', 'pais', 'mitja', 'millor_marca', 'prova'])
 
-        # 1. Netegem els noms de les columnes (treure espais i posar minúscules)
-        df.columns = [c.strip().lower() for c in df.columns]
+        # 1. Netegem noms de columnes: treure espais i posar minúscules
+        df.columns = [str(c).strip().lower() for c in df.columns]
 
-        # 2. Si Google Forms ha posat noms llargs com "nom de l'atleta", els simplifiquem
-        # Busquem columnes que coninguin certes paraules clau
-        mapeig = {}
+        # 2. Mapeig intel·ligent: busquem quina columna és cada cosa
+        # Això evita l'error si Google Forms mou les columnes de lloc
+        columnes_desti = {}
         for col in df.columns:
-            if "nom" in col: mapeig[col] = "nom"
-            elif "pais" in col or "país" in col: mapeig[col] = "pais"
-            elif "mitja" in col or "nivell" in col: mapeig[col] = "mitja"
-            elif "marca" in col and "temps" not in col: mapeig[col] = "millor_marca"
-            elif "prova" in col: mapeig[col] = "prova"
+            if "nom" in col: columnes_desti[col] = "nom"
+            elif "pais" in col or "país" in col: columnes_desti[col] = "pais"
+            elif "mitja" in col or "nivell" in col: columnes_desti[col] = "mitja"
+            elif "prova" in col: columnes_desti[col] = "prova"
+            elif "marca" in col and "temps" not in col: columnes_desti[col] = "millor_marca"
         
-        df = df.rename(columns=mapeig)
+        df = df.rename(columns=columnes_desti)
 
-        # 3. Ens assegurem que la columna 'millor_marca' sigui numèrica
-        if 'millor_marca' in df.columns:
-            df['millor_marca'] = pd.to_numeric(df['millor_marca'], errors='coerce')
-        else:
-            df['millor_marca'] = None
+        # 3. Verifiquem que tinguem les columnes mínimes, si no les creem buides
+        for obligatoria in ['nom', 'pais', 'mitja', 'millor_marca', 'prova']:
+            if obligatoria not in df.columns:
+                df[obligatoria] = None
 
-        # 4. Retornem només les columnes que ens interessen (ignorant la marca de temps)
-        columnes_bones = [c for c in ['nom', 'pais', 'mitja', 'millor_marca', 'prova'] if c in df.columns]
-        return df[columnes_bones]
+        # 4. CONVERSIÓ SEGURA (Aquí és on donava l'error)
+        # Convertim a numèric element per element per evitar l'error de l'array
+        df['millor_marca'] = pd.to_numeric(df['millor_marca'], errors='coerce')
+        df['mitja'] = pd.to_numeric(df['mitja'], errors='coerce').fillna(0)
+
+        # 5. Retornem només el que ens interessa i en l'ordre correcte
+        return df[['nom', 'pais', 'mitja', 'millor_marca', 'prova']]
         
     except Exception as e:
+        # Si hi ha un error crític, mostrem el missatge però retornem un DF buit per no bloquejar l'App
         st.error(f"Error llegint l'Excel: {e}")
         return pd.DataFrame(columns=['nom', 'pais', 'mitja', 'millor_marca', 'prova'])
-
 # --- DADES COMPLETES ---
 PAISOS = {
     "Europa": ["Albània", "Alemanya", "Andorra", "Armènia", "Àustria", "Bèlgica", "Bielorússia", "Bòsnia i Hercegovina", "Bulgària", "Catalunya", "Xipre", "Croàcia", "Dinamarca", "Eslovàquia", "Eslovènia", "Espanya", "Estònia", "Finlàndia", "França", "Geòrgia", "Grècia", "Hongria", "Irlanda", "Islàndia", "Israel", "Itàlia", "Kosovo", "Letònia", "Liechtenstein", "Lituània", "Luxemburg", "Malta", "Moldàvia", "Mònaco", "Montenegro", "Noruega", "Pais Basc", "Països Baixos", "Polònia", "Portugal", "Inglaterra", "Escocia", "Gales", "Irlanda del Nord", "República Txeca", "Romania", "Rússia", "San Marino", "Sèrbia", "Suècia", "Suïssa", "Turquia", "Ucraïna"],
