@@ -11,6 +11,24 @@ st.set_page_config(page_title="IAAF World Database Pro", layout="wide")
 # Connexió per LLEGIR
 conn = st.connection("gsheets", type=GSheetsConnection)
 
+def calcular_marca(nivell, conf):
+    """Calcula una marca individual amb aleatorietat."""
+    base = conf['n1'] + (nivell - 1) * (conf['n100'] - conf['n1']) / 99
+    if conf['tipus'] == "temps":
+        factor = 1 + random.uniform(-0.01, 0.04)
+        return round(base * factor, 2)
+    else:
+        # 10% de probabilitat de nul
+        if random.random() < 0.10:
+            return None # Nul
+        factor = 1 + random.uniform(-0.04, 0.01)
+        return round(base * factor, 2)
+
+def millor_intent(intents, tipus):
+    """Retorna la millor marca d'una llista (ignorant None/Nuls)."""
+    valids = [i for i in intents if i is not None]
+    if not valids: return None
+    return min(valids) if tipus == "temps" else max(valids)
 def carregar_atletes():
     try:
         df_raw = conn.read(ttl=0)
@@ -113,71 +131,143 @@ elif menu == "📋 Llista i PB":
     st.dataframe(df_actual[['nom', 'pais', 'prova', 'mitja', 'millor_marca']], use_container_width=True)
 
 elif menu == "🏆 COMPETICIÓ":
-    st.header("🏁 Simulació de Proves")
+    st.header("🏁 Sistema de Competició Oficial")
 
-    # (Mantenim la teva taula de config_proves igual que abans)
+    # Mantenim config_proves igual que abans...
     config_proves = {
-        "100 metres llisos": {"n1": 10.44, "n100": 9.58, "tipus": "temps"},
-        "200 metres llisos": {"n1": 21.15, "n100": 19.19, "tipus": "temps"},
-        "400 metres llisos": {"n1": 46.67, "n100": 43.03, "tipus": "temps"},
-        "800 metres llisos": {"n1": 111.19, "n100": 100.91, "tipus": "temps"},
-        "1.500 metres llisos": {"n1": 222.36, "n100": 206.00, "tipus": "temps"},
-        "110 metres tanques": {"n1": 13.64, "n100": 12.80, "tipus": "temps"},
-        "400 metres tanques": {"n1": 48.84, "n100": 45.94, "tipus": "temps"},
-        "Salt de llargada": {"n1": 8.25, "n100": 8.95, "tipus": "metres"},
-        "Triple salt": {"n1": 17.24, "n100": 18.29, "tipus": "metres"},
-        "Salt d’alçada": {"n1": 2.28, "n100": 2.45, "tipus": "metres"},
-        "Salt amb perxa": {"n1": 5.51, "n100": 6.24, "tipus": "metres"},
-        "Llançament de pes": {"n1": 22.73, "n100": 23.56, "tipus": "metres"},
-        "Llançament de disc": {"n1": 70.13, "n100": 74.08, "tipus": "metres"},
-        "Llançament de martell": {"n1": 85.57, "n100": 86.74, "tipus": "metres"},
-        "Llançament de javelina": {"n1": 89.34, "n100": 98.48, "tipus": "metres"}
+        "100 metres llisos": {"n1": 10.44, "n100": 9.58, "tipus": "temps", "fase": "curses"},
+        "200 metres llisos": {"n1": 21.15, "n100": 19.19, "tipus": "temps", "fase": "curses"},
+        "400 metres llisos": {"n1": 46.67, "n100": 43.03, "tipus": "temps", "fase": "curses"},
+        "800 metres llisos": {"n1": 111.19, "n100": 100.91, "tipus": "temps", "fase": "curses"},
+        "1.500 metres llisos": {"n1": 222.36, "n100": 206.00, "tipus": "temps", "fase": "curses"},
+        "110 metres tanques": {"n1": 13.64, "n100": 12.80, "tipus": "temps", "fase": "curses"},
+        "400 metres tanques": {"n1": 48.84, "n100": 45.94, "tipus": "temps", "fase": "curses"},
+        "Salt de llargada": {"n1": 8.25, "n100": 8.95, "tipus": "metres", "fase": "concurs"},
+        "Triple salt": {"n1": 17.24, "n100": 18.29, "tipus": "metres", "fase": "concurs"},
+        "Salt d’alçada": {"n1": 2.28, "n100": 2.45, "tipus": "metres", "fase": "concurs"},
+        "Salt amb perxa": {"n1": 5.51, "n100": 6.24, "tipus": "metres", "fase": "concurs"},
+        "Llançament de pes": {"n1": 22.73, "n100": 23.56, "tipus": "metres", "fase": "concurs"},
+        "Llançament de disc": {"n1": 70.13, "n100": 74.08, "tipus": "metres", "fase": "concurs"},
+        "Llançament de martell": {"n1": 85.57, "n100": 86.74, "tipus": "metres", "fase": "concurs"},
+        "Llançament de javelina": {"n1": 89.34, "n100": 98.48, "tipus": "metres", "fase": "concurs"}
     }
 
     prova_simu = st.selectbox("Tria la prova:", list(config_proves.keys()))
+    conf = config_proves[prova_simu]
     atletes_aptes = df_actual[df_actual['prova'] == prova_simu]
 
-    if len(atletes_aptes) < 2:
-        st.warning(f"Necessites almenys 2 atletes de {prova_simu}.")
+    # Requisits mínims
+    num_necessari = 48 if conf['fase'] == "curses" else 48
+    if len(atletes_aptes) < num_necessari:
+        st.warning(f"Falten atletes per completar els quadres de competició (Teniu {len(atletes_aptes)}/{num_necessari}).")
     else:
-        triats = st.multiselect("Participants:", atletes_aptes['nom'].tolist())
-        
-        if st.button("🚀 INICIAR"):
-            if not triats:
-                st.error("Selecciona participants!")
-            else:
-                results = []
-                conf = config_proves[prova_simu]
-                progress_bar = st.progress(0)
+        if st.button(f"🚀 INICIAR {prova_simu.upper()}"):
+            participats = atletes_aptes.sample(48).to_dict('records') # Seleccionem 48 a l'atzar
+            
+            # --- LÒGICA PER A CURSES ---
+            if conf['fase'] == "curses":
+                # ELIMINATÒRIES (6 grups de 8)
+                grups = [participats[i:i+8] for i in range(0, 48, 8)]
+                st.subheader("🏁 ELIMINATÒRIES (6 sèries)")
                 
-                for i, n in enumerate(triats):
-                    atl = atletes_aptes[atletes_aptes['nom'] == n].iloc[0]
-                    nivell = float(atl['mitja'])
-                    
-                    # 1. CÀLCUL DE LA MARCA (La teva lògica)
-                    base = conf['n1'] + (nivell - 1) * (conf['n100'] - conf['n1']) / 99
-                    if conf['tipus'] == "temps":
-                        factor = 1 + random.uniform(-0.01, 0.04)
-                    else:
-                        factor = 1 + random.uniform(-0.04, 0.01)
-                    
-                    marca_final = round(base * factor, 2)
-                    
-                    # 2. GUARDAR A L'EXCEL (Cridem a la funció que ja funciona!)
-                    # Enviem Nom, Pais, Nivell, LA MARCA ACABADA DE FER i la Prova
-                    enviar_a_google_form(n, atl['pais'], nivell, marca_final, prova_simu)
-                    
-                    results.append({"Atleta": n, "País": atl['pais'], "Marca": marca_final})
-                    progress_bar.progress((i + 1) / len(triats))
+                classificats_semi = []
+                tercers = []
                 
-                # Ordenar resultats per mostrar el podi
-                es_temps = conf['tipus'] == "temps"
-                res_df = pd.DataFrame(results).sort_values("Marca", ascending=es_temps)
+                for idx, grup in enumerate(grups):
+                    results = []
+                    for atl in grup:
+                        m = calcular_marca(float(atl['mitja']), conf)
+                        results.append({"nom": atl['nom'], "pais": atl['pais'], "mitja": atl['mitja'], "marca": m})
+                    
+                    df_res = pd.DataFrame(results).sort_values("marca")
+                    st.write(f"**Sèrie {idx+1}**")
+                    st.table(df_res)
+                    
+                    # 1er i 2on passen directe
+                    classificats_semi.extend(df_res.iloc[0:2].to_dict('records'))
+                    # El 3er va a la "repesca"
+                    tercers.append(df_res.iloc[2].to_dict('records'))
                 
-                st.subheader(f"🏆 Podi: {prova_simu}")
-                st.table(res_df)
-                st.success("✅ Totes les marques s'han registrat a l'Excel!")
+                # Millors 4 tercers (amb sorteig en cas d'empat)
+                df_tercers = pd.DataFrame(tercers).sort_values("marca")
+                # Si hi ha empat en la posició 4, barregem els que tenen el mateix temps
+                millors_4_tercers = df_tercers.sample(frac=1).sort_values("marca").head(4) 
+                classificats_semi.extend(millors_4_tercers.to_dict('records'))
+                
+                st.success(f"Classificats per a Semifinals: {len(classificats_semi)} atletes.")
+
+                # SEMIFINALS (2 grups de 8)
+                st.subheader("🏃 SEMIFINALS (2 sèries)")
+                grups_semi = [classificats_semi[i:i+8] for i in range(0, 16, 8)]
+                classificats_final = []
+                
+                for idx, grup in enumerate(grups_semi):
+                    results = []
+                    for atl in grup:
+                        m = calcular_marca(float(atl['mitja']), conf)
+                        results.append({"nom": atl['nom'], "pais": atl['pais'], "mitja": atl['mitja'], "marca": m})
+                    df_res = pd.DataFrame(results).sort_values("marca")
+                    st.write(f"**Semifinal {idx+1}**")
+                    st.table(df_res)
+                    classificats_final.extend(df_res.iloc[0:4].to_dict('records'))
+                
+                # FINAL
+                st.subheader("🥇 FINAL")
+                final_res = []
+                for atl in classificats_final:
+                    m = calcular_marca(float(atl['mitja']), conf)
+                    final_res.append({"Atleta": atl['nom'], "País": atl['pais'], "Marca": m})
+                    # Guardar a l'Excel la marca final
+                    enviar_a_google_form(atl['nom'], atl['pais'], atl['mitja'], m, prova_simu)
+                
+                df_final = pd.DataFrame(final_res).sort_values("Marca")
+                st.table(df_final)
                 st.balloons()
+
+            # --- LÒGICA PER A CONCURSOS (Salts/Llançaments) ---
+            else:
+                st.subheader("📐 ELIMINATÒRIES DE CONCURS (2 grups de 24)")
+                grups_concurs = [participats[i:i+24] for i in range(0, 48, 24)]
+                classificats_final = []
                 
-                # Netegem la memòria perquè al carregar la llista surtin les noves marques
-                st.cache_data.clear()
+                for idx, grup in enumerate(grups_concurs):
+                    results = []
+                    for atl in grup:
+                        # 3 intents en eliminatòria
+                        intents = [calcular_marca(float(atl['mitja']), conf) for _ in range(3)]
+                        # Desempat per segon millor intent, tercer, etc. (ordenant la llista d'intents)
+                        intents_ordenats = sorted([i if i is not None else -1 for i in intents], reverse=True)
+                        m_max = intents_ordenats[0]
+                        results.append({
+                            "nom": atl['nom'], "pais": atl['pais'], "mitja": atl['mitja'],
+                            "marca": m_max if m_max != -1 else "Nul",
+                            "intents": intents_ordenats
+                        })
+                    
+                    # Ordenació complexa: Marca principal, després 2on millor, després 3er
+                    df_res = pd.DataFrame(results)
+                    df_res[['m1', 'm2', 'm3']] = pd.DataFrame(df_res['intents'].tolist(), index=df_res.index)
+                    df_res = df_res.sort_values(['m1', 'm2', 'm3'], ascending=False)
+                    
+                    st.write(f"**Grup {idx+1}** (Top 8 passen)")
+                    st.table(df_res[['nom', 'pais', 'marca']].head(12)) # Mostrem 12 per veure el tall
+                    classificats_final.extend(df_res.iloc[0:8].to_dict('records'))
+                
+                # FINAL DE CONCURS (16 atletes)
+                st.subheader("🥇 FINAL DE CONCURS")
+                final_res = []
+                for atl in classificats_final:
+                    # En la final solen fer 6 intents, però seguim la teva regla de nuls
+                    intents = [calcular_marca(float(atl['mitja']), conf) for _ in range(3)]
+                    intents_ordenats = sorted([i if i is not None else -1 for i in intents], reverse=True)
+                    m_max = intents_ordenats[0]
+                    marca_final = m_max if m_max != -1 else 0
+                    
+                    final_res.append({"Atleta": atl['nom'], "País": atl['pais'], "Marca": marca_final})
+                    enviar_a_google_form(atl['nom'], atl['pais'], atl['mitja'], marca_final, prova_simu)
+                
+                df_final = pd.DataFrame(final_res).sort_values("Marca", ascending=False)
+                st.table(df_final)
+                st.balloons()
+
+        st.cache_data.clear()
