@@ -48,30 +48,26 @@ PROVES_LLISTAT = ["100 metres llisos", "200 metres llisos", "400 metres llisos",
 
 # --- FUNCIÓ ENVIAMENT ---
 def enviar_a_google_form(nom, pais, mitja, marca, prova):
-    # La URL ha d'acabar EXÀCTAMENT així
+    # URL de resposta del teu formulari
     url = "https://docs.google.com/forms/d/e/1FAIpQLSebKgp7PqO8nNPrR5yLzuzxdFS8ijlR127pGFpn_bpwaiNKIw/formResponse"
     
-    # Posem les dades en un format de formulari estàndard
-    # Assegura't que els números entry.XXX siguin els que vas treure del codi font
+    # ARA SÍ: Els IDs Reals que has trobat
     payload = {
-        "entry.1030999587": str(nom),
-        "entry.440237722": str(pais),
-        "entry.1011387679": str(mitja),
-        "entry.550186989": str(marca),
-        "entry.2066863965": str(prova)
+        "entry.1668159850": str(nom),     # Nom
+        "entry.1670433567": str(pais),    # País
+        "entry.1326600864": str(mitja),   # Nivell / Mitja
+        "entry.1635147765": str(marca),   # Millor Marca
+        "entry.445329310": str(prova)     # Prova
     }
     
-    # Obliguem a que el contingut sigui de tipus formulari
-    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    
     try:
-        # Enviament tipus POST (el que fa Google)
-        response = requests.post(url, data=payload, headers=headers)
+        # Enviament tipus POST (estàndard de Google)
+        response = requests.post(url, data=payload)
         
-        # Si t'arriba l'hora a l'Excel, aquest codi retornarà 200 (True)
+        # Si Google respon OK (200), l'atleta ja hauria de sortir a l'Excel
         return response.ok
     except Exception as e:
-        st.error(f"Error de xarxa: {e}")
+        st.error(f"Error de connexió: {e}")
         return False
 # --- LÒGICA ---
 menu = st.sidebar.radio("Menú", ["🏠 Inici", "📝 Inscripcions", "📋 Llista i PB", "🏆 COMPETICIÓ"])
