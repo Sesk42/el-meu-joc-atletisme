@@ -13,36 +13,39 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_atletes():
     try:
-        # LLegim l'Excel (ttl=0 per dades fresques)
-        df = conn.read(ttl=0)
+        # 1. Llegim les dades crues
+        df_raw = conn.read(ttl=0)
         
-        if df is None or df.empty:
+        # Si no hi ha res, retornem estructura buida
+        if df_raw is None or df_raw.empty:
             return pd.DataFrame(columns=['nom', 'pais', 'mitja', 'millor_marca', 'prova'])
 
-        # 1. Netegem noms de columnes: treure espais i posar minúscules
-        df.columns = [str(c).strip().lower() for c in df.columns]
+        # 2. Netegem noms de columnes (treure espais i minúscules)
+        df_raw.columns = [str(c).strip().lower() for c in df_raw.columns]
 
-        # 2. Mapeig intel·ligent per trobar les columnes encara que canviïn de nom
-        columnes_desti = {}
-        for col in df.columns:
-            if "nom" in col: columnes_desti[col] = "nom"
-            elif "pais" in col or "país" in col: columnes_desti[col] = "pais"
-            elif "mitja" in col or "nivell" in col: columnes_desti[col] = "mitja"
-            elif "prova" in col: columnes_desti[col] = "prova"
-            elif "marca" in col and "temps" not in col: columnes_desti[col] = "millor_marca"
-        
-        df = df.rename(columns=columnes_desti)
+        # 3. Creem un nou DataFrame net per evitar l'error d'arguments de Pandas
+        df = pd.DataFrame()
 
-        # 3. Verifiquem i creem columnes faltants
-        for obligatoria in ['nom', 'pais', 'mitja', 'millor_marca', 'prova']:
-            if obligatoria not in df.columns:
-                df[obligatoria] = None
+        # Busquem les columnes per paraula clau (més segur)
+        for col in df_raw.columns:
+            col_str = str(col)
+            if "nom" in col_str: df['nom'] = df_raw[col]
+            elif "pais" in col_str or "país" in col_str: df['pais'] = df_raw[col]
+            elif "mitja" in col_str or "nivell" in col_str: df['mitja'] = df_raw[col]
+            elif "prova" in col_str: df['prova'] = df_raw[col]
+            elif "marca" in col_str and "temps" not in col_str: df['millor_marca'] = df_raw[col]
 
-        # 4. Conversió segura a números
-        df['millor_marca'] = pd.to_numeric(df['millor_marca'], errors='coerce')
-        df['mitja'] = pd.to_numeric(df['mitja'], errors='coerce').fillna(0)
+        # 4. Verifiquem que tinguem les 5 columnes, si no les creem buides
+        for c in ['nom', 'pais', 'mitja', 'millor_marca', 'prova']:
+            if c not in df.columns:
+                df[c] = None
 
-        # 5. Netegem files que no tinguin nom (files buides de l'Excel)
+        # 5. EL TRUC PER EVITAR L'ERROR: Convertim a Sèrie explícitament
+        # Això arregla l'error "arg must be a list, tuple..."
+        df['mitja'] = pd.to_numeric(pd.Series(df['mitja']), errors='coerce').fillna(0)
+        df['millor_marca'] = pd.to_numeric(pd.Series(df['millor_marca']), errors='coerce')
+
+        # 6. Eliminem files on el nom estigui buit (neteja final)
         df = df.dropna(subset=['nom'])
 
         return df[['nom', 'pais', 'mitja', 'millor_marca', 'prova']]
