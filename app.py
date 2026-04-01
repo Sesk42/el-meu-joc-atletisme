@@ -48,23 +48,28 @@ PROVES_LLISTAT = ["100 metres llisos", "200 metres llisos", "400 metres llisos",
 
 # --- FUNCIÓ ENVIAMENT ---
 def enviar_a_google_form(nom, pais, mitja, marca, prova):
+    # URL base de resposta
     url = "https://docs.google.com/forms/d/e/1FAIpQLSebKgp7PqO8nNPrR5yLzuzxdFS8ijlR127pGFpn_bpwaiNKIw/formResponse"
     
-    # Enviem tot com a text pur (str) per evitar errors de validació
+    # Dades a enviar
     payload = {
         "entry.1030999587": str(nom),
         "entry.440237722": str(pais),
         "entry.1011387679": str(mitja),
         "entry.550186989": str(marca),
-        "entry.2066863965": str(prova)
+        "entry.2066863965": str(prova),
+        "submit": "Submit" # Afegim el botó virtual de "Enviar"
     }
     
     try:
-        # Utilitzem requests.post de la manera més simple possible
-        response = requests.post(url, data=payload)
-        # Si surt verd, és que Google ha rebut el paquet
-        return response.ok
-    except:
+        # FEM SERVIR 'params' en lloc de 'data'. 
+        # Això obliga a enviar-ho com una URL llarga (com la que et va funcionar)
+        response = requests.get(url, params=payload)
+        
+        # Google sol retornar 200 fins i tot si només guarda l'hora
+        return response.status_code == 200
+    except Exception as e:
+        st.error(f"Error tècnic: {e}")
         return False
 # --- LÒGICA ---
 menu = st.sidebar.radio("Menú", ["🏠 Inici", "📝 Inscripcions", "📋 Llista i PB", "🏆 COMPETICIÓ"])
