@@ -115,14 +115,13 @@ elif menu == "📋 Llista i PB":
 elif menu == "🏆 COMPETICIÓ":
     st.header("🏁 Simulació de Proves")
 
-    # 1. TAULA DE RESULTATS EDITABLE (Nivell 1 - Nivell 100)
-    # Pots canviar aquests valors aquí mateix i el joc s'adaptarà
+    # (Mantenim la teva taula de config_proves igual que abans)
     config_proves = {
         "100 metres llisos": {"n1": 10.44, "n100": 9.58, "tipus": "temps"},
         "200 metres llisos": {"n1": 21.15, "n100": 19.19, "tipus": "temps"},
         "400 metres llisos": {"n1": 46.67, "n100": 43.03, "tipus": "temps"},
-        "800 metres llisos": {"n1": 111.19, "n100": 100.91, "tipus": "temps"}, # Convertit a segons (1:51.19 -> 111.19)
-        "1.500 metres llisos": {"n1": 222.36, "n100": 206.00, "tipus": "temps"}, # Convertit a segons (3:42.36 -> 222.36)
+        "800 metres llisos": {"n1": 111.19, "n100": 100.91, "tipus": "temps"},
+        "1.500 metres llisos": {"n1": 222.36, "n100": 206.00, "tipus": "temps"},
         "110 metres tanques": {"n1": 13.64, "n100": 12.80, "tipus": "temps"},
         "400 metres tanques": {"n1": 48.84, "n100": 45.94, "tipus": "temps"},
         "Salt de llargada": {"n1": 8.25, "n100": 8.95, "tipus": "metres"},
@@ -144,32 +143,41 @@ elif menu == "🏆 COMPETICIÓ":
         triats = st.multiselect("Participants:", atletes_aptes['nom'].tolist())
         
         if st.button("🚀 INICIAR"):
-            results = []
-            conf = config_proves[prova_simu]
-            
-            for n in triats:
-                atl = atletes_aptes[atletes_aptes['nom'] == n].iloc[0]
-                nivell = float(atl['mitja'])
+            if not triats:
+                st.error("Selecciona participants!")
+            else:
+                results = []
+                conf = config_proves[prova_simu]
+                progress_bar = st.progress(0)
                 
-                # CÀLCUL BASE (Interpolació lineal entre 1 i 100)
-                # Formula: y = y1 + (x - x1) * (y100 - y1) / (100 - 1)
-                base = conf['n1'] + (nivell - 1) * (conf['n100'] - conf['n1']) / 99
+                for i, n in enumerate(triats):
+                    atl = atletes_aptes[atletes_aptes['nom'] == n].iloc[0]
+                    nivell = float(atl['mitja'])
+                    
+                    # 1. CÀLCUL DE LA MARCA (La teva lògica)
+                    base = conf['n1'] + (nivell - 1) * (conf['n100'] - conf['n1']) / 99
+                    if conf['tipus'] == "temps":
+                        factor = 1 + random.uniform(-0.01, 0.04)
+                    else:
+                        factor = 1 + random.uniform(-0.04, 0.01)
+                    
+                    marca_final = round(base * factor, 2)
+                    
+                    # 2. GUARDAR A L'EXCEL (Cridem a la funció que ja funciona!)
+                    # Enviem Nom, Pais, Nivell, LA MARCA ACABADA DE FER i la Prova
+                    enviar_a_google_form(n, atl['pais'], nivell, marca_final, prova_simu)
+                    
+                    results.append({"Atleta": n, "País": atl['pais'], "Marca": marca_final})
+                    progress_bar.progress((i + 1) / len(triats))
                 
-                # APLICAR ALEATORIETAT
-                if conf['tipus'] == "temps":
-                    # Aleatorietat entre +4% (pitjor) i -1% (millor)
-                    factor = 1 + random.uniform(-0.01, 0.04)
-                else:
-                    # Aleatorietat entre -4% (pitjor) i +1% (millor)
-                    factor = 1 + random.uniform(-0.04, 0.01)
+                # Ordenar resultats per mostrar el podi
+                es_temps = conf['tipus'] == "temps"
+                res_df = pd.DataFrame(results).sort_values("Marca", ascending=es_temps)
                 
-                marca_final = round(base * factor, 2)
-                results.append({"Atleta": n, "País": atl['pais'], "Marca": marca_final})
-            
-            # Ordenar
-            es_temps = conf['tipus'] == "temps"
-            res_df = pd.DataFrame(results).sort_values("Marca", ascending=es_temps)
-            
-            # Format per a visualitzar temps llargs (opcional)
-            st.table(res_df)
-            st.balloons()
+                st.subheader(f"🏆 Podi: {prova_simu}")
+                st.table(res_df)
+                st.success("✅ Totes les marques s'han registrat a l'Excel!")
+                st.balloons()
+                
+                # Netegem la memòria perquè al carregar la llista surtin les noves marques
+                st.cache_data.clear()
