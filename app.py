@@ -44,4 +44,81 @@ PAISOS = {
     "Oceania": ["Austràlia", "Fiji", "Illes Marshall", "Illes Salomó", "Kiribati", "Micronèsia", "Nauru", "Nova Zelanda", "Palau", "Papua Nova Guinea", "Samoa", "Tonga", "Tuvalu", "Vanuatu"]
 }
 
-PROVES_LLISTAT = ["100 metres llisos", "200 metres llisos", "400 metres llisos", "800 metres llisos", "1.500 metres llisos", "110 metres tanques", "400 metres tanques", "Salt de llargada", "Triple salt", "Salt d’alçada", "Salt amb perxa", "
+PROVES_LLISTAT = ["100 metres llisos", "200 metres llisos", "400 metres llisos", "800 metres llisos", "1.500 metres llisos", "110 metres tanques", "400 metres tanques", "Salt de llargada", "Triple salt", "Salt d’alçada", "Salt amb perxa", "Llançament de pes", "Llançament de javelina", "Llançament de martell", "Llançament de disc"]
+
+# --- FUNCIÓ ENVIAMENT ---
+def enviar_a_google_form(nom, pais, mitja, marca, prova):
+    url = "https://docs.google.com/forms/d/e/1FAIpQLSebKgp7PqO8nNPrR5yLzuzxdFS8ijlR127pGFpn_bpwaiNKIw/formResponse"
+    payload = {
+        "entry.1030999587": str(nom),
+        "entry.440237722": str(pais),
+        "entry.1011387679": str(mitja),
+        "entry.550186989": str(marca),
+        "entry.2066863965": str(prova)
+    }
+    try:
+        response = requests.post(url, data=payload)
+        return response.status_code == 200
+    except:
+        return False
+
+# --- LÒGICA ---
+menu = st.sidebar.radio("Menú", ["🏠 Inici", "📝 Inscripcions", "📋 Llista i PB", "🏆 COMPETICIÓ"])
+df_actual = carregar_atletes()
+
+if menu == "🏠 Inici":
+    st.title("🏆 IAAF World Database & Records")
+    st.write(f"Atletes registrats: **{len(df_actual)}**")
+
+elif menu == "📝 Inscripcions":
+    st.header("👤 Nova Inscripció")
+    
+    # FORA del form posem els selectbox perque s'actualitzin a l'instant
+    nom_in = st.text_input("Nom de l'atleta:")
+    c1, c2 = st.columns(2)
+    with c1:
+        cont = st.selectbox("Continent", sorted(PAISOS.keys()))
+    with c2:
+        # La clau 'key' és el que feia que funcionés abans!
+        pais_triat = st.selectbox("País", sorted(PAISOS[cont]), key=f"p_{cont}")
+    
+    c3, c4 = st.columns(2)
+    with c3:
+        prova_triada = st.selectbox("Prova Especialitzada", PROVES_LLISTAT)
+    with c4:
+        nivell = st.slider("Nivell (0-100)", 10, 99, 80)
+    
+    # El botó sol, sense 'st.form' per evitar embolics de refresc
+    if st.button("🚀 Guardar Atleta"):
+        if nom_in.strip():
+            if enviar_a_google_form(nom_in, pais_triat, nivell, "", prova_triada):
+                st.success(f"✅ {nom_in} guardat correctament!")
+                st.cache_data.clear()
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error("Error al guardar.")
+        else:
+            st.warning("Escriu un nom!")
+
+elif menu == "📋 Llista i PB":
+    st.header("📋 Rànquing Personal")
+    st.dataframe(df_actual[['nom', 'pais', 'prova', 'mitja', 'millor_marca']], use_container_width=True)
+
+elif menu == "🏆 COMPETICIÓ":
+    st.header("🏁 Simulació de Proves")
+    prova_simu = st.selectbox("Tria la prova:", PROVES_LLISTAT)
+    atletes_aptes = df_actual[df_actual['prova'] == prova_simu]
+    if len(atletes_aptes) < 2:
+        st.warning("Falten atletes.")
+    else:
+        triats = st.multiselect("Participants:", atletes_aptes['nom'].tolist())
+        if st.button("🚀 INICIAR"):
+            results = []
+            for n in triats:
+                atl = atletes_aptes[atletes_aptes['nom'] == n].iloc[0]
+                pot = int(atl['mitja'])
+                marca = round(13.0 - (pot/20) + random.uniform(-0.1, 0.1), 2)
+                results.append({"Atleta": n, "País": atl['pais'], "Marca": marca})
+            res_df = pd.DataFrame(results).sort_values("Marca")
+            st.table(res_df)
