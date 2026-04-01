@@ -6,142 +6,124 @@ import time
 # --- CONFIGURACIÓ DE PÀGINA ---
 st.set_page_config(page_title="Simulador Mundial d'Atletisme", layout="wide")
 
-# Inicialitzar la llista d'atletes a la memòria de la sessió
+# Inicialitzar la llista d'atletes si no existeix
 if 'atletes' not in st.session_state:
     st.session_state.atletes = []
 
-# --- BASE DE DADES DE PAÏSOS (AMB ELS TEUS CANVIS) ---
+# --- BASE DE DADES DE PAÏSOS (LA TEVA LLISTA EXACTA) ---
 PAISOS = {
     "Europa": [
-        "Catalunya", "Andorra", "Espanya", "França", "Alemanya", "Itàlia", 
-        "Anglaterra", "Escòcia", "Gal·les", "Irlanda del Nord", 
-        "Irlanda", "Portugal", "Bèlgica", "Països Baixos", "Suïssa", 
-        "Àustria", "Grècia", "Noruega", "Suècia", "Finlàndia", "Dinamarca", 
-        "Polònia", "República Txeca", "Hongria", "Ucraïna", "Croàcia"
-    ],
-    "Amèrica": [
-        "Estats Units", "Jamaica", "Canadà", "Mèxic", "Brasil", "Argentina", 
-        "Colòmbia", "Xile", "Cuba", "Bahames", "Trinitat i Tobago", "Veneçuela", 
-        "Equador", "Perú", "Uruguai", "República Dominicana"
+        "Albània", "Alemanya", "Andorra", "Armènia", "Àustria", "Bèlgica", "Bielorússia", 
+        "Bòsnia i Hercegovina", "Bulgària", "Catalunya", "Xipre", "Croàcia", "Dinamarca", 
+        "Eslovàquia", "Eslovènia", "Espanya", "Estònia", "Finlàndia", "França", "Geòrgia", 
+        "Grècia", "Hongria", "Irlanda", "Islàndia", "Israel", "Itàlia", "Kosovo", "Letònia", 
+        "Liechtenstein", "Lituània", "Luxemburg", "Malta", "Moldàvia", "Mònaco", "Montenegro", 
+        "Noruega", "Pais Basc", "Països Baixos", "Polònia", "Portugal", "Inglaterra", 
+        "Escocia", "Gales", "Irlanda del Nord", "República Txeca", "Romania", "Rússia", 
+        "San Marino", "Sèrbia", "Suècia", "Suïssa", "Turquia", "Ucraïna"
     ],
     "Àfrica": [
-        "Kenya", "Etiòpia", "Marroc", "Sud-àfrica", "Nigèria", "Algèria", 
-        "Egipte", "Botswana", "Uganda", "Costa d'Ivori", "Senegal", "Eritrea"
+        "Algèria", "Angola", "Benín", "Botswana", "Burkina Faso", "Burundi", "Cabo Verde", 
+        "Camerun", "Comores", "Congo", "Costa d’Ivori", "Djibouti", "Egipte", "Eritrea", 
+        "Eswatini", "Etiòpia", "Gabon", "Gàmbia", "Ghana", "Guinea", "Guinea-Bissau", 
+        "Guinea Equatorial", "Kenya", "Lesotho", "Libèria", "Líbia", "Madagascar", 
+        "Malawi", "Mali", "Marroc", "Maurici", "Mauritània", "Moçambic", "Namíbia", 
+        "Níger", "Nigèria", "República Centreafricana", "República Democràtica del Congo", 
+        "Ruanda", "São Tomé i Príncipe", "Senegal", "Seychelles", "Sierra Leone", 
+        "Somàlia", "Sudan", "Sudan del Sud", "Tanzània", "Togo", "Tunísia", "Uganda", 
+        "Zàmbia", "Zimbabwe"
     ],
-    "Àsia": [
-        "Japó", "Xina", "Corea del Sud", "Índia", "Qatar", "Bahrain", 
-        "Kazakhstan", "Tailàndia", "Vietnam", "Indonèsia"
+    "Amèrica": [
+        "Antigua i Barbuda", "Argentina", "Bahamas", "Barbados", "Belize", "Bolívia", 
+        "Brasil", "Canadà", "Xile", "Colòmbia", "Costa Rica", "Cuba", "Dominica", 
+        "República Dominicana", "Equador", "El Salvador", "Grenada", "Guatemala", 
+        "Guyana", "Haití", "Hondures", "Jamaica", "Mèxic", "Nicaragua", "Panamà", 
+        "Paraguai", "Perú", "Saint Kitts i Nevis", "Saint Lucia", "Saint Vincent i les Grenadines", 
+        "Surinam", "Trinitat i Tobago", "Estats Units", "Uruguai", "Veneçuela"
+    ],
+    "Asia": [
+        "Afganistan", "Aràbia Saudita", "Azerbaidjan", "Bahrain", "Bangladesh", "Bhutan", 
+        "Brunei", "Cambodja", "Xina", "Corea del Nord", "Corea del Sud", "Emirats Àrabs Units", 
+        "Filipines", "Índia", "Indonèsia", "Iran", "Iraq", "Japó", "Jordània", "Kazakhstan", 
+        "Kirguizistan", "Kuwait", "Laos", "Líban", "Malàisia", "Maldives", "Mongòlia", 
+        "Myanmar", "Nepal", "Oman", "Pakistan", "Qatar", "Singapur", "Sri Lanka", "Síria", 
+        "Tailàndia", "Taiwan", "Tajikistan", "Timor Oriental", "Turkmenistan", "Uzbekistan", 
+        "Vietnam", "Yemen"
     ],
     "Oceania": [
-        "Austràlia", "Nova Zelanda", "Fiji", "Samoa", "Papua Nova Guinea"
+        "Austràlia", "Fiji", "Illes Marshall", "Illes Salomó", "Kiribati", "Micronèsia", 
+        "Nauru", "Nova Zelanda", "Palau", "Papua Nova Guinea", "Samoa", "Tonga", "Tuvalu", "Vanuatu"
     ]
 }
 
-# --- ESTILS I MENÚ ---
-st.sidebar.title("🏃 Control de Pista")
-menu = st.sidebar.radio("Seccions:", ["🏠 Inici", "📝 Inscriure Atletes", "📋 Llista d'Atletes", "🏆 COMPETICIÓ"])
+# --- MENÚ LATERAL ---
+st.sidebar.title("🏃 IAAF Manager")
+menu = st.sidebar.radio("Menú:", ["🏠 Inici", "📝 Inscripcions", "📋 Llista d'Atletes", "🏆 COMPETICIÓ"])
 
-# --- 1. PANTALLA D'INICI ---
+# --- PANTALLES ---
 if menu == "🏠 Inici":
-    st.title("🏆 Simulador de Competicions d'Atletisme")
-    st.markdown("""
-    Benvingut al teu sistema de gestió esportiva. Des d'aquí podràs:
-    * **Crear** el teu propi planter d'atletes internacionals.
-    * **Gestionar** les baixes i les inscripcions.
-    * **Simular** curses basades en el nivell de cada corredor.
-    """)
-    st.info("💡 Consell: Ves a 'Inscriure Atletes' per començar a omplir la graella.")
+    st.title("🏆 Simulador d'Atletisme")
+    st.write("Gestiona els teus atletes i simula curses amb la teva pròpia base de dades.")
+    st.info("Utilitza el menú de l'esquerra per començar.")
 
-# --- 2. PANTALLA D'INSCRIPCIÓ ---
-elif menu == "📝 Inscriure Atletes":
-    st.header("👤 Formulari d'Inscripció")
-    
-    with st.form("nou_atleta", clear_on_submit=True):
-        nom = st.text_input("Nom complet de l'atleta:")
+elif menu == "📝 Inscripcions":
+    st.header("👤 Nova Inscripció")
+    with st.form("form_atl", clear_on_submit=True):
+        nom = st.text_input("Nom de l'atleta:")
+        c1, c2 = st.columns(2)
+        with c1:
+            cont = st.selectbox("Continent", sorted(list(PAISOS.keys())))
+        with c2:
+            pais_triat = st.selectbox("País", sorted(PAISOS[cont]))
         
-        col1, col2 = st.columns(2)
-        with col1:
-            continent = st.selectbox("Continent", list(PAISOS.keys()))
-        with col2:
-            # Això fa que la llista de països canviï segons el continent triat
-            pais = st.selectbox("País", PAISOS[continent])
-            
-        mitja = st.slider("Potencial / Nivell (0-100)", 10, 99, 75)
+        nivell = st.slider("Nivell (0-100)", 10, 99, 80)
         
-        botó_guardar = st.form_submit_button("Confirmar Inscripció")
-        
-        if botó_guardar:
-            if nom.strip() != "":
-                # Afegim un ID únic amb time.time() per poder esborrar sense errors
-                nou_atl = {"id": time.time(), "nom": nom, "pais": pais, "mitja": mitja}
-                st.session_state.atletes.append(nou_atl)
-                st.success(f"✅ {nom} s'ha afegit a la delegació de {pais}!")
+        if st.form_submit_button("Guardar Atleta"):
+            if nom.strip():
+                st.session_state.atletes.append({
+                    "id": time.time(), "nom": nom, "pais": pais_triat, "mitja": nivell
+                })
+                st.success(f"✅ {nom} ({pais_triat}) inscrit!")
             else:
-                st.warning("⚠️ Per favor, posa un nom vàlid.")
+                st.error("Posa un nom vàlid.")
 
-# --- 3. PANTALLA DE LLISTA I ESBORRAT ---
 elif menu == "📋 Llista d'Atletes":
-    st.header("📋 Atletes Federats")
-    
+    st.header("📋 Atletes Registrats")
     if not st.session_state.atletes:
-        st.info("Encara no hi ha cap atleta inscrit.")
+        st.write("No hi ha atletes.")
     else:
-        # Botó per netejar-ho tot de cop
-        if st.button("🗑️ ESBORRAR TOTA LA LLISTA"):
+        if st.button("🗑️ BUIDAR TOTA LA LLISTA"):
             st.session_state.atletes = []
             st.rerun()
-            
-        st.write("---")
         
-        # Mostrar cada atleta amb el seu botó d'eliminar
-        for index, atleta in enumerate(st.session_state.atletes):
-            c1, c2, c3, c4 = st.columns([3, 2, 1, 1])
-            c1.write(f"**{atleta['nom']}**")
-            c2.write(f"🌍 {atleta['pais']}")
-            c3.write(f"⚡ {atleta['mitja']}")
-            
-            # El "key" ha de ser únic per a cada botó
-            if c4.button("Eliminar", key=f"btn_{atleta['id']}"):
-                st.session_state.atletes.pop(index)
+        st.write("---")
+        for i, atl in enumerate(st.session_state.atletes):
+            col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+            col1.write(f"**{atl['nom']}**")
+            col2.write(f"📍 {atl['pais']}")
+            col3.write(f"⚡ {atl['mitja']}")
+            if col4.button("Eliminar", key=f"del_{atl['id']}"):
+                st.session_state.atletes.pop(i)
                 st.rerun()
 
-# --- 4. PANTALLA DE COMPETICIÓ ---
 elif menu == "🏆 COMPETICIÓ":
-    st.header("🏁 Graella de Sortida")
-    
+    st.header("🏁 Simulació de Carrera")
     if len(st.session_state.atletes) < 2:
-        st.error("Es necessiten almenys 2 atletes per iniciar una competició.")
+        st.warning("Necessites almenys 2 atletes per fer una cursa.")
     else:
-        noms_disponibles = [a['nom'] for a in st.session_state.atletes]
-        triats = st.multiselect("Selecciona els participants:", noms_disponibles)
+        triats = st.multiselect("Tria els participants:", [a['nom'] for a in st.session_state.atletes])
         
-        if st.button("🚀 DISPARAR SORTIDA"):
-            if len(triats) < 2:
-                st.warning("Selecciona almenys dos corredors per a la cursa.")
-            else:
-                st.write("🏃 *Corrent...*")
-                progress_bar = st.progress(0)
-                for i in range(100):
-                    time.sleep(0.01)
-                    progress_bar.progress(i + 1)
-                
-                # Càlcul de resultats
-                resultats = []
+        if st.button("🚀 INICIAR CURSA"):
+            if len(triats) >= 2:
+                results = []
                 for n in triats:
-                    # Trobar l'objecte de l'atleta triat
-                    atl_info = next(item for item in st.session_state.atletes if item["nom"] == n)
-                    # Lògica: a més mitja, menys temps (més ràpid), amb un toc de sort aleatòria
-                    base_temps = 14.0 
-                    factor_velocitat = atl_info['mitja'] / 15
-                    sort = random.uniform(-0.3, 0.3)
-                    temps_final = round(base_temps - factor_velocitat + sort, 2)
-                    
-                    resultats.append({"Posició": 0, "Atleta": n, "País": atl_info['pais'], "Temps": temps_final})
+                    atl = next(x for x in st.session_state.atletes if x['nom'] == n)
+                    marca = round(13.0 - (atl['mitja']/20) + random.uniform(-0.15, 0.15), 2)
+                    results.append({"Atleta": n, "País": atl['pais'], "Marca": marca})
                 
-                # Ordenar i posar posició
-                df_final = pd.DataFrame(resultats).sort_values(by="Temps")
-                df_final["Posició"] = range(1, len(df_final) + 1)
-                
+                df = pd.DataFrame(results).sort_values("Marca")
+                df.insert(0, "Pos", range(1, len(df) + 1))
                 st.balloons()
-                st.subheader("📊 Podi i Resultats")
-                st.table(df_final.set_index("Posició"))
+                st.table(df.set_index("Pos"))
+            else:
+                st.error("Tria almenys 2 corredors.")
