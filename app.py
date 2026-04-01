@@ -13,19 +13,39 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_atletes():
     try:
-        # ttl=0 obliga a carregar dades noves de l'Excel cada vegada
+        # ttl=0 per forçar la lectura de dades noves
         df = conn.read(ttl=0)
+        
         if df is None or df.empty:
             return pd.DataFrame(columns=['nom', 'pais', 'mitja', 'millor_marca', 'prova'])
-        
-        # Netegem els noms de les columnes per si Google Forms hi posa espais o majúscules
+
+        # 1. Netegem els noms de les columnes (treure espais i posar minúscules)
         df.columns = [c.strip().lower() for c in df.columns]
+
+        # 2. Si Google Forms ha posat noms llargs com "nom de l'atleta", els simplifiquem
+        # Busquem columnes que coninguin certes paraules clau
+        mapeig = {}
+        for col in df.columns:
+            if "nom" in col: mapeig[col] = "nom"
+            elif "pais" in col or "país" in col: mapeig[col] = "pais"
+            elif "mitja" in col or "nivell" in col: mapeig[col] = "mitja"
+            elif "marca" in col and "temps" not in col: mapeig[col] = "millor_marca"
+            elif "prova" in col: mapeig[col] = "prova"
         
-        # Si Google Forms afegeix la columna "marca de temps", la ignorem si cal, 
-        # però ens assegurem que les columnes que necessitem hi siguin.
-        df['millor_marca'] = pd.to_numeric(df['millor_marca'], errors='coerce')
-        return df
+        df = df.rename(columns=mapeig)
+
+        # 3. Ens assegurem que la columna 'millor_marca' sigui numèrica
+        if 'millor_marca' in df.columns:
+            df['millor_marca'] = pd.to_numeric(df['millor_marca'], errors='coerce')
+        else:
+            df['millor_marca'] = None
+
+        # 4. Retornem només les columnes que ens interessen (ignorant la marca de temps)
+        columnes_bones = [c for c in ['nom', 'pais', 'mitja', 'millor_marca', 'prova'] if c in df.columns]
+        return df[columnes_bones]
+        
     except Exception as e:
+        st.error(f"Error llegint l'Excel: {e}")
         return pd.DataFrame(columns=['nom', 'pais', 'mitja', 'millor_marca', 'prova'])
 
 # --- DADES COMPLETES ---
