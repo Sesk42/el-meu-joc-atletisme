@@ -72,24 +72,25 @@ PROVES_LLISTAT = [
 
 # --- FUNCIÓ PER GUARDAR (SENSE TARGETA) ---
 def enviar_a_google_form(nom, pais, mitja, marca, prova):
-    # La teva URL real de resposta
+    # La URL de resposta (formResponse)
     url = "https://docs.google.com/forms/d/e/1FAIpQLSebKgp7PqO8nNPrR5yLzuzxdFS8ijlR127pGFpn_bpwaiNKIw/formResponse"
     
-    # AQUESTS SÓN ELS TEUS NÚMEROS REALS EXTRAIÏTS DEL TEU FORMULARI:
-    valors = {
-        "entry.1030999587": str(nom),     # Nom
-        "entry.440237722": str(pais),      # País
-        "entry.1011387679": str(mitja),    # Nivell/Mitja
-        "entry.550186989": str(marca),     # Millor Marca (enviem buit si no n'hi ha)
-        "entry.2066863965": str(prova)     # Prova
+    # Preparem les dades exactament com a l'enllaç que t'ha funcionat
+    payload = {
+        "entry.1030999587": str(nom),
+        "entry.440237722": str(pais),
+        "entry.1011387679": str(mitja),
+        "entry.550186989": str(marca),
+        "entry.2066863965": str(prova)
     }
     
     try:
-        # Enviem les dades a Google
-        res = requests.post(url, data=valors)
-        return res.status_code == 200
+        # Fem l'enviament real
+        response = requests.post(url, data=payload)
+        # Si Google respon 200, és que s'ha guardat
+        return response.status_code == 200
     except Exception as e:
-        print(f"Error enviant: {e}")
+        st.error(f"Error de xarxa: {e}")
         return False
 
 # --- LÒGICA PRINCIPAL ---
