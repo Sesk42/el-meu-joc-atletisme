@@ -114,18 +114,62 @@ elif menu == "📋 Llista i PB":
 
 elif menu == "🏆 COMPETICIÓ":
     st.header("🏁 Simulació de Proves")
-    prova_simu = st.selectbox("Tria la prova:", PROVES_LLISTAT)
+
+    # 1. TAULA DE RESULTATS EDITABLE (Nivell 1 - Nivell 100)
+    # Pots canviar aquests valors aquí mateix i el joc s'adaptarà
+    config_proves = {
+        "100 metres llisos": {"n1": 10.44, "n100": 9.58, "tipus": "temps"},
+        "200 metres llisos": {"n1": 21.15, "n100": 19.19, "tipus": "temps"},
+        "400 metres llisos": {"n1": 46.67, "n100": 43.03, "tipus": "temps"},
+        "800 metres llisos": {"n1": 111.19, "n100": 100.91, "tipus": "temps"}, # Convertit a segons (1:51.19 -> 111.19)
+        "1.500 metres llisos": {"n1": 222.36, "n100": 206.00, "tipus": "temps"}, # Convertit a segons (3:42.36 -> 222.36)
+        "110 metres tanques": {"n1": 13.64, "n100": 12.80, "tipus": "temps"},
+        "400 metres tanques": {"n1": 48.84, "n100": 45.94, "tipus": "temps"},
+        "Salt de llargada": {"n1": 8.25, "n100": 8.95, "tipus": "metres"},
+        "Triple salt": {"n1": 17.24, "n100": 18.29, "tipus": "metres"},
+        "Salt d’alçada": {"n1": 2.28, "n100": 2.45, "tipus": "metres"},
+        "Salt amb perxa": {"n1": 5.51, "n100": 6.24, "tipus": "metres"},
+        "Llançament de pes": {"n1": 22.73, "n100": 23.56, "tipus": "metres"},
+        "Llançament de disc": {"n1": 70.13, "n100": 74.08, "tipus": "metres"},
+        "Llançament de martell": {"n1": 85.57, "n100": 86.74, "tipus": "metres"},
+        "Llançament de javelina": {"n1": 89.34, "n100": 98.48, "tipus": "metres"}
+    }
+
+    prova_simu = st.selectbox("Tria la prova:", list(config_proves.keys()))
     atletes_aptes = df_actual[df_actual['prova'] == prova_simu]
+
     if len(atletes_aptes) < 2:
-        st.warning("Falten atletes.")
+        st.warning(f"Necessites almenys 2 atletes de {prova_simu}.")
     else:
         triats = st.multiselect("Participants:", atletes_aptes['nom'].tolist())
+        
         if st.button("🚀 INICIAR"):
             results = []
+            conf = config_proves[prova_simu]
+            
             for n in triats:
                 atl = atletes_aptes[atletes_aptes['nom'] == n].iloc[0]
-                pot = int(atl['mitja'])
-                marca = round(13.0 - (pot/20) + random.uniform(-0.1, 0.1), 2)
-                results.append({"Atleta": n, "País": atl['pais'], "Marca": marca})
-            res_df = pd.DataFrame(results).sort_values("Marca")
+                nivell = float(atl['mitja'])
+                
+                # CÀLCUL BASE (Interpolació lineal entre 1 i 100)
+                # Formula: y = y1 + (x - x1) * (y100 - y1) / (100 - 1)
+                base = conf['n1'] + (nivell - 1) * (conf['n100'] - conf['n1']) / 99
+                
+                # APLICAR ALEATORIETAT
+                if conf['tipus'] == "temps":
+                    # Aleatorietat entre +4% (pitjor) i -1% (millor)
+                    factor = 1 + random.uniform(-0.01, 0.04)
+                else:
+                    # Aleatorietat entre -4% (pitjor) i +1% (millor)
+                    factor = 1 + random.uniform(-0.04, 0.01)
+                
+                marca_final = round(base * factor, 2)
+                results.append({"Atleta": n, "País": atl['pais'], "Marca": marca_final})
+            
+            # Ordenar
+            es_temps = conf['tipus'] == "temps"
+            res_df = pd.DataFrame(results).sort_values("Marca", ascending=es_temps)
+            
+            # Format per a visualitzar temps llargs (opcional)
             st.table(res_df)
+            st.balloons()
