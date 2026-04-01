@@ -48,13 +48,10 @@ PROVES_LLISTAT = ["100 metres llisos", "200 metres llisos", "400 metres llisos",
 
 # --- FUNCIÓ ENVIAMENT ---
 def enviar_a_google_form(nom, pais, mitja, marca, prova):
-    import urllib.parse
-    
-    # URL de resposta
     url = "https://docs.google.com/forms/d/e/1FAIpQLSebKgp7PqO8nNPrR5yLzuzxdFS8ijlR127pGFpn_bpwaiNKIw/formResponse"
     
-    # Dades
-    valors = {
+    # Enviem tot com a text pur (str) per evitar errors de validació
+    payload = {
         "entry.1030999587": str(nom),
         "entry.440237722": str(pais),
         "entry.1011387679": str(mitja),
@@ -62,23 +59,13 @@ def enviar_a_google_form(nom, pais, mitja, marca, prova):
         "entry.2066863965": str(prova)
     }
     
-    # Convertim les dades al format exacte que vol Google (application/x-www-form-urlencoded)
-    dades_codificades = urllib.parse.urlencode(valors)
-    
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0"
-    }
-    
     try:
-        # Enviem fent servir 'data' i no 'json'
-        res = requests.post(url, data=dades_codificades, headers=headers)
-        # Si Google respon 200 (OK) o 302 (Redirecció d'èxit), és correcte
-        return res.status_code == 200 or res.status_code == 302
-    except Exception as e:
-        st.error(f"Error de xarxa: {e}")
+        # Utilitzem requests.post de la manera més simple possible
+        response = requests.post(url, data=payload)
+        # Si surt verd, és que Google ha rebut el paquet
+        return response.ok
+    except:
         return False
-
 # --- LÒGICA ---
 menu = st.sidebar.radio("Menú", ["🏠 Inici", "📝 Inscripcions", "📋 Llista i PB", "🏆 COMPETICIÓ"])
 df_actual = carregar_atletes()
