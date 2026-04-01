@@ -48,28 +48,30 @@ PROVES_LLISTAT = ["100 metres llisos", "200 metres llisos", "400 metres llisos",
 
 # --- FUNCIÓ ENVIAMENT ---
 def enviar_a_google_form(nom, pais, mitja, marca, prova):
-    # URL base de resposta
+    # La URL ha d'acabar EXÀCTAMENT així
     url = "https://docs.google.com/forms/d/e/1FAIpQLSebKgp7PqO8nNPrR5yLzuzxdFS8ijlR127pGFpn_bpwaiNKIw/formResponse"
     
-    # Dades a enviar
+    # Posem les dades en un format de formulari estàndard
+    # Assegura't que els números entry.XXX siguin els que vas treure del codi font
     payload = {
         "entry.1030999587": str(nom),
         "entry.440237722": str(pais),
         "entry.1011387679": str(mitja),
         "entry.550186989": str(marca),
-        "entry.2066863965": str(prova),
-        "submit": "Submit" # Afegim el botó virtual de "Enviar"
+        "entry.2066863965": str(prova)
     }
     
+    # Obliguem a que el contingut sigui de tipus formulari
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    
     try:
-        # FEM SERVIR 'params' en lloc de 'data'. 
-        # Això obliga a enviar-ho com una URL llarga (com la que et va funcionar)
-        response = requests.get(url, params=payload)
+        # Enviament tipus POST (el que fa Google)
+        response = requests.post(url, data=payload, headers=headers)
         
-        # Google sol retornar 200 fins i tot si només guarda l'hora
-        return response.status_code == 200
+        # Si t'arriba l'hora a l'Excel, aquest codi retornarà 200 (True)
+        return response.ok
     except Exception as e:
-        st.error(f"Error tècnic: {e}")
+        st.error(f"Error de xarxa: {e}")
         return False
 # --- LÒGICA ---
 menu = st.sidebar.radio("Menú", ["🏠 Inici", "📝 Inscripcions", "📋 Llista i PB", "🏆 COMPETICIÓ"])
