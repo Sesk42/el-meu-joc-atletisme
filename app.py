@@ -11,9 +11,8 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_atletes():
     df = conn.read(ttl=0)
-    if df.empty:
+    if df is None or df.empty:
         return pd.DataFrame(columns=['id', 'nom', 'pais', 'mitja', 'millor_marca', 'tipus_prova'])
-    # Si la marca està buida a l'Excel, la posem com a None
     df['millor_marca'] = pd.to_numeric(df['millor_marca'], errors='coerce')
     return df
 
@@ -37,28 +36,39 @@ if menu == "🏠 Inici":
 
 elif menu == "📝 Inscripcions":
     st.header("👤 Nova Inscripció")
-    with st.form("add_form", clear_on_submit=True):
-        nom = st.text_input("Nom de l'atleta:")
-        c1, c2 = st.columns(2)
-        with c1: cont = st.selectbox("Continent", sorted(PAISOS.keys()))
-        with c2: pais_triat = st.selectbox("País", sorted(PAISOS[cont]))
-        
-        col_t1, col_t2 = st.columns(2)
-        with col_t1:
-            tipus = st.selectbox("Tipus de Prova", ["Carrera (100m)", "Concurs (Salt/Llançament)"])
-        with col_t2:
-            nivell = st.slider("Nivell (Potencial)", 10, 99, 80)
-        
-        if st.form_submit_button("Guardar"):
-            # Guardem la marca buida (None) d'inici
+    
+    # 1. Triem el nom
+    nom = st.text_input("Nom de l'atleta:")
+    
+    # 2. Triem Continent i País (FORA del form perquè es refresquin al moment)
+    c1, c2 = st.columns(2)
+    with c1:
+        cont = st.selectbox("Continent", sorted(PAISOS.keys()))
+    with c2:
+        # La clau dinàmica f"p_{cont}" obliga a Streamlit a refrescar la llista quan canvia el continent
+        pais_triat = st.selectbox("País", sorted(PAISOS[cont]), key=f"p_{cont}")
+    
+    # 3. La resta de detalls
+    col_t1, col_t2 = st.columns(2)
+    with col_t1:
+        tipus = st.selectbox("Tipus de Prova", ["Carrera (100m)", "Concurs (Salt/Llançament)"])
+    with col_t2:
+        nivell = st.slider("Nivell (Potencial)", 10, 99, 80)
+    
+    # 4. Botó de guardar
+    if st.button("🚀 Guardar Atleta"):
+        if nom.strip():
             nou_atleta = pd.DataFrame([{
                 "id": str(time.time()), "nom": nom, "pais": pais_triat, 
                 "mitja": nivell, "millor_marca": None, "tipus_prova": tipus
             }])
             df_actualitzat = pd.concat([df_actual, nou_atleta], ignore_index=True)
             conn.update(data=df_actualitzat)
-            st.success(f"✅ {nom} registrat!")
+            st.success(f"✅ {nom} ({pais_triat}) registrat correctament!")
+            time.sleep(1)
             st.rerun()
+        else:
+            st.error("⚠️ Si us plau, introdueix un nom.")
 
 elif menu == "📋 Llista i PB":
     st.header("📋 Rànquing Personal")
@@ -88,32 +98,34 @@ elif menu == "🏆 COMPETICIÓ":
     else:
         triats = st.multiselect("Tria participants:", df_actual['nom'].tolist())
         if st.button("🚀 INICIAR"):
-            results = []
-            updates = False
-            for n in triats:
-                idx = df_actual[df_actual['nom'] == n].index[0]
-                atl = df_actual.iloc[idx]
+            if not triats:
+                st.error("Tria algun atleta!")
+            else:
+                results = []
+                updates = False
+                for n in triats:
+                    idx = df_actual[df_actual['nom'] == n].index[0]
+                    atl = df_actual.iloc[idx]
+                    
+                    if atl['tipus_prova'] == "Carrera (100m)":
+                        marca = round(13.5 - (int(atl['mitja'])/18) + random.uniform(-0.15, 0.15), 2)
+                        es_millor = pd.isna(atl['millor_marca']) or marca < atl['millor_marca']
+                    else: 
+                        marca = round((int(atl['mitja'])/12) + random.uniform(-0.5, 0.5), 2)
+                        es_millor = pd.isna(atl['millor_marca']) or marca > atl['millor_marca']
+                    
+                    msg = ""
+                    if es_millor:
+                        df_actual.at[idx, 'millor_marca'] = marca
+                        updates = True
+                        msg = "🔥 NOU PB!"
+                    
+                    results.append({"Atleta": n, "Tipus": atl['tipus_prova'], "Marca": marca, "Info": msg})
                 
-                # Simulació de marca segons tipus
-                if atl['tipus_prova'] == "Carrera (100m)":
-                    marca = round(13.5 - (int(atl['mitja'])/18) + random.uniform(-0.15, 0.15), 2)
-                    es_millor = pd.isna(atl['millor_marca']) or marca < atl['millor_marca']
-                else: # Concurs
-                    marca = round((int(atl['mitja'])/12) + random.uniform(-0.5, 0.5), 2)
-                    es_millor = pd.isna(atl['millor_marca']) or marca > atl['millor_marca']
+                if updates:
+                    conn.update(data=df_actual)
                 
-                msg = ""
-                if es_millor:
-                    df_actual.at[idx, 'millor_marca'] = marca
-                    updates = True
-                    msg = "🔥 NOU PB!"
+                st.balloons()
+                res_df = pd.DataFrame(results).sort_values("Marca", ascending=(True if "Carrera" in str(results[0]) else False))
+                st.table(res_df)
                 
-                results.append({"Atleta": n, "Tipus": atl['tipus_prova'], "Marca": marca, "Info": msg})
-            
-            if updates:
-                conn.update(data=df_actual)
-            
-            st.balloons()
-            res_df = pd.DataFrame(results)
-            # Ordenem: si és carrera, el menor temps primer. Si és concurs, el major distància primer.
-            st.table(res_df)
