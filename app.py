@@ -16,15 +16,13 @@ def carregar_atletes():
         # LLegim l'Excel (ttl=0 per dades fresques)
         df = conn.read(ttl=0)
         
-        # Si l'Excel està totalment buit (només capçaleres o ni això)
         if df is None or df.empty:
             return pd.DataFrame(columns=['nom', 'pais', 'mitja', 'millor_marca', 'prova'])
 
         # 1. Netegem noms de columnes: treure espais i posar minúscules
         df.columns = [str(c).strip().lower() for c in df.columns]
 
-        # 2. Mapeig intel·ligent: busquem quina columna és cada cosa
-        # Això evita l'error si Google Forms mou les columnes de lloc
+        # 2. Mapeig intel·ligent per trobar les columnes encara que canviïn de nom
         columnes_desti = {}
         for col in df.columns:
             if "nom" in col: columnes_desti[col] = "nom"
@@ -35,23 +33,24 @@ def carregar_atletes():
         
         df = df.rename(columns=columnes_desti)
 
-        # 3. Verifiquem que tinguem les columnes mínimes, si no les creem buides
+        # 3. Verifiquem i creem columnes faltants
         for obligatoria in ['nom', 'pais', 'mitja', 'millor_marca', 'prova']:
             if obligatoria not in df.columns:
                 df[obligatoria] = None
 
-        # 4. CONVERSIÓ SEGURA (Aquí és on donava l'error)
-        # Convertim a numèric element per element per evitar l'error de l'array
+        # 4. Conversió segura a números
         df['millor_marca'] = pd.to_numeric(df['millor_marca'], errors='coerce')
         df['mitja'] = pd.to_numeric(df['mitja'], errors='coerce').fillna(0)
 
-        # 5. Retornem només el que ens interessa i en l'ordre correcte
+        # 5. Netegem files que no tinguin nom (files buides de l'Excel)
+        df = df.dropna(subset=['nom'])
+
         return df[['nom', 'pais', 'mitja', 'millor_marca', 'prova']]
         
     except Exception as e:
-        # Si hi ha un error crític, mostrem el missatge però retornem un DF buit per no bloquejar l'App
         st.error(f"Error llegint l'Excel: {e}")
         return pd.DataFrame(columns=['nom', 'pais', 'mitja', 'millor_marca', 'prova'])
+
 # --- DADES COMPLETES ---
 PAISOS = {
     "Europa": ["Albània", "Alemanya", "Andorra", "Armènia", "Àustria", "Bèlgica", "Bielorússia", "Bòsnia i Hercegovina", "Bulgària", "Catalunya", "Xipre", "Croàcia", "Dinamarca", "Eslovàquia", "Eslovènia", "Espanya", "Estònia", "Finlàndia", "França", "Geòrgia", "Grècia", "Hongria", "Irlanda", "Islàndia", "Israel", "Itàlia", "Kosovo", "Letònia", "Liechtenstein", "Lituània", "Luxemburg", "Malta", "Moldàvia", "Mònaco", "Montenegro", "Noruega", "Pais Basc", "Països Baixos", "Polònia", "Portugal", "Inglaterra", "Escocia", "Gales", "Irlanda del Nord", "República Txeca", "Romania", "Rússia", "San Marino", "Sèrbia", "Suècia", "Suïssa", "Turquia", "Ucraïna"],
@@ -70,90 +69,112 @@ PROVES_LLISTAT = [
 
 # --- FUNCIÓ PER GUARDAR (SENSE TARGETA) ---
 def enviar_a_google_form(nom, pais, mitja, marca, prova):
+    # La URL ha d'acabar en /formResponse per poder escriure
     url = "https://docs.google.com/forms/d/e/1FAIpQLSebKgp7PqO8nNPrR5yLzuzxdFS8ijlR127pGFpn_bpwaiNKIw/formResponse"
+    
+    # Valors preparats per enviar
     valors = {
-        "entry.1030999587": nom,
-        "entry.440237722": pais,
-        "entry.1011387679": mitja,
-        "entry.550186989": marca,
-        "entry.2066863965": prova
+        "entry.1030999587": str(nom).strip(),
+        "entry.440237722": str(pais).strip(),
+        "entry.1011387679": str(mitja),
+        "entry.550186989": str(marca),
+        "entry.2066863965": str(prova).strip()
     }
+    
     try:
-        requests.post(url, data=valors)
-        return True
+        res = requests.post(url, data=valors)
+        return res.status_code == 200
     except:
         return False
 
 # --- LÒGICA PRINCIPAL ---
 menu = st.sidebar.radio("Menú", ["🏠 Inici", "📝 Inscripcions", "📋 Llista i PB", "🏆 COMPETICIÓ"])
+
+# Carreguem dades
 df_actual = carregar_atletes()
 
 if menu == "🏠 Inici":
     st.title("🏆 IAAF World Database & Records")
     st.write(f"Atletes registrats: **{len(df_actual)}**")
+    st.info("Consell: Si acabes d'inscriure un atleta i no surt, espera 5 segons i canvia de pestanya al menú.")
 
 elif menu == "📝 Inscripcions":
     st.header("👤 Nova Inscripció")
-    nom = st.text_input("Nom de l'atleta:")
-    c1, c2 = st.columns(2)
-    with c1:
-        cont = st.selectbox("Continent", sorted(PAISOS.keys()))
-    with c2:
-        pais_triat = st.selectbox("País", sorted(PAISOS[cont]), key=f"p_{cont}")
-    
-    c3, c4 = st.columns(2)
-    with c3:
-        prova_triada = st.selectbox("Prova Especialitzada", PROVES_LLISTAT)
-    with c4:
-        nivell = st.slider("Nivell (0-100)", 10, 99, 80)
-    
-    if st.button("🚀 Guardar Atleta"):
-        if nom.strip():
-            èxit = enviar_a_google_form(nom, pais_triat, nivell, "", prova_triada)
-            if èxit:
-                st.success(f"✅ {nom} enviat! Espera que Google actualitzi l'Excel...")
-                time.sleep(3) # Donem temps a Google
-                st.rerun()
+    with st.container():
+        nom_in = st.text_input("Nom de l'atleta:")
+        c1, c2 = st.columns(2)
+        with c1:
+            cont = st.selectbox("Continent", sorted(PAISOS.keys()))
+        with c2:
+            pais_triat = st.selectbox("País", sorted(PAISOS[cont]), key=f"p_{cont}")
+        
+        c3, c4 = st.columns(2)
+        with c3:
+            prova_triada = st.selectbox("Prova Especialitzada", PROVES_LLISTAT)
+        with c4:
+            nivell = st.slider("Nivell (0-100)", 10, 99, 80)
+        
+        if st.button("🚀 Guardar Atleta"):
+            if nom_in.strip():
+                amb_exit = enviar_a_google_form(nom_in, pais_triat, nivell, "", prova_triada)
+                if amb_exit:
+                    st.success(f"✅ {nom_in} s'ha registrat correctament!")
+                    st.cache_data.clear() # Netegem cache per forçar lectura fresca
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error("Error al connectar amb Google Forms.")
             else:
-                st.error("Error de connexió.")
+                st.warning("Escriu el nom de l'atleta!")
 
 elif menu == "📋 Llista i PB":
     st.header("📋 Rànquing Personal")
     if df_actual.empty:
-        st.info("No hi ha atletes. Si n'has guardat un ara mateix, refresca la pàgina en uns segons.")
+        st.info("La base de dades està buida.")
     else:
-        # Mostrem una taula neta
-        st.dataframe(df_actual[['nom', 'pais', 'prova', 'mitja', 'millor_marca']])
+        # Mostrem una taula neta (traiem columnes internes si n'hi hagués)
+        st.dataframe(df_actual[['nom', 'pais', 'prova', 'mitja', 'millor_marca']], use_container_width=True)
 
 elif menu == "🏆 COMPETICIÓ":
     st.header("🏁 Simulació de Proves")
-    prova_simu = st.selectbox("Tria la prova:", PROVES_LLISTAT)
+    prova_simu = st.selectbox("Tria la prova a competir:", PROVES_LLISTAT)
     
-    # Filtrem
+    # Filtrem atletes que fan aquesta prova
     atletes_aptes = df_actual[df_actual['prova'] == prova_simu]
     
     if len(atletes_aptes) < 2:
-        st.warning(f"Necessites almenys 2 atletes de {prova_simu}.")
+        st.warning(f"Es necessiten almenys 2 atletes especialitzats en {prova_simu} per competir.")
     else:
-        triats = st.multiselect("Participants:", atletes_aptes['nom'].tolist())
-        if st.button("🚀 INICIAR"):
-            results = []
-            es_cursa = any(x in prova_simu.lower() for x in ["metres", "tanques"])
-            
-            for n in triats:
-                atl = atletes_aptes[atletes_aptes['nom'] == n].iloc[0]
-                pot = int(atl['mitja'])
+        triats = st.multiselect("Selecciona els participants:", atletes_aptes['nom'].tolist())
+        
+        if st.button("🚀 INICIAR CURSA / SALT"):
+            if len(triats) < 2:
+                st.error("Tria almenys 2 participants!")
+            else:
+                results = []
+                es_cursa = any(x in prova_simu.lower() for x in ["metres", "tanques"])
                 
-                # Fórmules de marques reals
-                if prova_simu == "100 metres llisos": marca = round(13.0 - (pot/20) + random.uniform(-0.1, 0.1), 2)
-                elif prova_simu == "200 metres llisos": marca = round(26.0 - (pot/10) + random.uniform(-0.2, 0.2), 2)
-                elif prova_simu == "400 metres llisos": marca = round(60.0 - (pot/4) + random.uniform(-0.5, 0.5), 2)
-                elif "Salt" in prova_simu: marca = round(2.0 + (pot/20) + random.uniform(-0.1, 0.1), 2)
-                elif "Llançament" in prova_simu: marca = round(15.0 + (pot/1.2) + random.uniform(-1, 1), 2)
-                else: marca = round(100 - pot + random.uniform(-5, 5), 2)
+                barra = st.progress(0)
+                for i, n in enumerate(triats):
+                    time.sleep(0.3) # Efecte d'espera
+                    barra.progress((i + 1) / len(triats))
+                    
+                    atl = atletes_aptes[atletes_aptes['nom'] == n].iloc[0]
+                    pot = int(atl['mitja'])
+                    
+                    # Fórmules segons prova
+                    if "100 metres" in prova_simu: marca = round(13.0 - (pot/20) + random.uniform(-0.15, 0.15), 2)
+                    elif "200 metres" in prova_simu: marca = round(26.0 - (pot/10) + random.uniform(-0.25, 0.25), 2)
+                    elif "Salt de llargada" in prova_simu: marca = round(3.0 + (pot/20) + random.uniform(-0.2, 0.2), 2)
+                    elif "Llançament" in prova_simu: marca = round(15.0 + (pot/1.2) + random.uniform(-1, 1), 2)
+                    else: marca = round(100 - pot + random.uniform(-5, 5), 2)
+                    
+                    results.append({"Posició": 0, "Atleta": n, "País": atl['pais'], "Marca": marca})
                 
-                results.append({"Atleta": n, "País": atl['pais'], "Marca": marca})
-            
-            st.balloons()
-            res_df = pd.DataFrame(results).sort_values("Marca", ascending=es_cursa)
-            st.table(res_df)
+                st.balloons()
+                res_df = pd.DataFrame(results).sort_values("Marca", ascending=es_cursa)
+                
+                # Afegir medalles
+                res_df['Posició'] = range(1, len(res_df) + 1)
+                st.subheader(f"🏆 Resultats de {prova_simu}")
+                st.table(res_df)
